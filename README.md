@@ -1,6 +1,48 @@
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
-# Getting Started
+
+# Reproducing the bug
+
+
+To reproduce the bug, simply run the app following react-native guide.
+- Then click on the bug blue "Register background fetch" button. (This will register a background task)
+- Then you can kill your app and run the background task with `adb shell cmd jobscheduler run -f com.rnbgfetchbugrepro 999`
+   - You should see a logger in the metro console indicating the task started, stopped, and finished.
+- Then re-open the app and reclick the button
+- Re-kill your app and re-run the headless task with `adb shell cmd jobscheduler run -f com.rnbgfetchbugrepro 999`
+   - You should now see an error in the **logcat** console `[BGTask] failed to load config for taskId: react-native-background-fetch`
+ 
+      
+## Video of this process
+
+https://github.com/user-attachments/assets/86a1d6b3-35c9-4115-92ae-fbb19bd82faf
+
+
+
+
+## What is happening
+
+From my research, I noticed that the second time we register the background task, it is not properly saved into the shared-preferences (We can see it in the video).
+This happens because on this line, the mConfig hashmap still contains the taskId when we relaunch the app the second time.
+
+https://github.com/ACHP/transistor-background-fetch/blob/7ad81a8fca982c4e7a2abcce440fb2d36716b207/android/tsbackgroundfetch/src/main/java/com/transistorsoft/tsbackgroundfetch/BackgroundFetch.java#L88
+
+And the hashmap still contains the taskId because when we call `stop()`, it clean the shared-preferences, but not the mConfig hashmap.
+
+https://github.com/ACHP/transistor-background-fetch/blob/7ad81a8fca982c4e7a2abcce440fb2d36716b207/android/tsbackgroundfetch/src/main/java/com/transistorsoft/tsbackgroundfetch/BackgroundFetch.java#L146-L170
+
+That is why we see a `Re-configured existing task`, instead of a fresh "configure".
+Then when we try to run the background task, it loads the config from the shared-preference, but it can't find nothing. So it fails with `[BGTask] failed to load config for taskId: react-native-background-fetch`
+
+
+### Suggestion
+We should probablu clear the mConfig object when we stop the backgroundTask, so that there is no "desynchronisation" between the sharedPreference
+
+
+
+
+
+# Now, Running the app with React-Native
 
 >**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
 
