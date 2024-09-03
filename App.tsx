@@ -5,113 +5,82 @@
  * @format
  */
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+import React, {useCallback} from 'react';
+import {SafeAreaView, StyleSheet, Text, TouchableOpacity} from 'react-native';
+import BackgroundFetch from 'react-native-background-fetch';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+function backgroundFetchStatusToString(status: number) {
+  switch (status) {
+    case 0:
+      return 'STATUS_RESTRICTED';
+    case 1:
+      return 'STATUS_DENIED';
+    case 2:
+      return 'STATUS_AVAILABLE';
+    default:
+      return 'UNKNOWN';
+  }
+}
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+async function startBgService() {
+  const backgroundFetchFeatureStatus = await BackgroundFetch.status();
+  if (backgroundFetchFeatureStatus === BackgroundFetch.STATUS_AVAILABLE) {
+    const configureStatus = await BackgroundFetch.configure(
+      {
+        enableHeadless: true,
+        startOnBoot: false,
+        stopOnTerminate: false,
+        // Configuring `forceAlarmManager: true` will bypass `JobScheduler`
+        // to use Android's older `AlarmManager` API resulting in more accurate task-execution
+        // at the cost of **higher battery usage**
+        forceAlarmManager: false, //__DEV__,
+        minimumFetchInterval: 15,
+        requiredNetworkType: BackgroundFetch.NETWORK_TYPE_ANY,
+        requiresBatteryNotLow: true,
+        requiresCharging: false,
+        requiresDeviceIdle: false,
+        requiresStorageNotLow: false,
+      },
+      async (taskId: string) => {
+        console.log('On event callback');
+        await BackgroundFetch.stop(taskId);
+        BackgroundFetch.finish(taskId);
+      },
+      async (taskId: string) => {
+        console.log('On timeout callback');
+        await BackgroundFetch.stop(taskId);
+        BackgroundFetch.finish(taskId);
+      },
+    );
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
+    console.log(backgroundFetchStatusToString(configureStatus));
+  }
 }
 
 function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
+  const onPress = useCallback(() => {
+    startBgService().catch(console.error);
+  }, []);
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+    <SafeAreaView style={styles.wrapper}>
+      <TouchableOpacity style={styles.button} onPress={onPress}>
+        <Text>Register background fetch</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
+  wrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  button: {
     paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
+    paddingVertical: 12,
+    backgroundColor: 'cyan',
   },
 });
 
